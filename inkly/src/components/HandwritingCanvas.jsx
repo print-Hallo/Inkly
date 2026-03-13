@@ -285,31 +285,25 @@ export default function HandwritingCanvas({ onExport }) {
     saveState();
   }, [saveState]);
 
-  const handleExportPDF = useCallback(async () => {
+  const handleExportPNG = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const originalWidth = 800;
-    const originalHeight = 1600;
-    const dpr = window.devicePixelRatio || 1;
-
-    // 1. Create an offscreen canvas to composite the background and strokes
     const exportCanvas = document.createElement("canvas");
     exportCanvas.width = canvas.width;
     exportCanvas.height = canvas.height;
     const ctx = exportCanvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
 
-    // 2. Draw Theme Background Color
+    // Draw Theme Background Color
     ctx.fillStyle = themesData[theme].bg;
     ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
 
-    // 3. Draw Ruled Lines
+    // Draw Ruled Lines
     if (theme.includes("ruled")) {
       const lineSpacing = 32 * dpr;
-      
       ctx.lineWidth = 1 * dpr;
       ctx.strokeStyle = theme.startsWith("dark") ? "#2a2a3e" : "#e5e5f0";
-      
       for (let y = 40 * dpr; y < exportCanvas.height; y += lineSpacing) {
         ctx.beginPath();
         ctx.moveTo(0, y);
@@ -326,33 +320,15 @@ export default function HandwritingCanvas({ onExport }) {
       ctx.stroke();
     }
 
-    // 4. Draw User Strokes
+    // Draw User Strokes
     ctx.drawImage(canvas, 0, 0);
 
-    // 5. Convert to Image and add to jsPDF
-    const dataUrl = exportCanvas.toDataURL("image/jpeg", 0.95);
-    
-    try {
-      // Safely import jsPDF in Next.js
-      const jsPDFModule = await import("jspdf");
-      const JsPDFClass = jsPDFModule.default ? (jsPDFModule.default.jsPDF || jsPDFModule.default) : jsPDFModule.jsPDF;
-      
-      // 1px = 0.75pt (assuming 96 DPI)
-      const pdfWidthPt = originalWidth * 0.75;
-      const pdfHeightPt = originalHeight * 0.75;
-
-      const pdf = new JsPDFClass({
-        orientation: "portrait",
-        unit: "pt",
-        format: [pdfWidthPt, pdfHeightPt]
-      });
-      
-      pdf.addImage(dataUrl, "JPEG", 0, 0, pdfWidthPt, pdfHeightPt);
-      pdf.save(`inkly-handwriting-${Date.now()}.pdf`);
-    } catch (err) {
-      console.error("Failed to generate PDF:", err);
-      alert("Error generating PDF. Please try again.");
-    }
+    // Convert to PNG and Trigger Download
+    const dataUrl = exportCanvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.download = `inkly-handwriting-${Date.now()}.png`;
+    link.href = dataUrl;
+    link.click();
   }, [theme, themesData]);
 
   const widths = [1, 2, 3, 5, 8];
@@ -488,7 +464,7 @@ export default function HandwritingCanvas({ onExport }) {
 
         <div style={{ marginLeft: "auto" }}>
           <button
-            onClick={handleExportPDF}
+            onClick={handleExportPNG}
             style={{
               padding: "6px 16px",
               borderRadius: "var(--radius-sm)",
@@ -502,7 +478,7 @@ export default function HandwritingCanvas({ onExport }) {
               transition: "all 0.15s ease",
             }}
           >
-            📄 Save as PDF
+            🖼️ Save as PNG
           </button>
         </div>
       </div>

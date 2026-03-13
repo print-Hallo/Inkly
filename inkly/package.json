@@ -21,9 +21,9 @@
     "@tiptap/starter-kit": "^3.20.1",
     "dompurify": "^3.3.3",
     "html2pdf.js": "^0.14.0",
-    "jspdf": "^4.2.0",
     "next": "16.1.6",
     "pdfjs-dist": "^5.5.207",
+    "playwright": "^1.58.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "tesseract.js": "^7.0.0"
