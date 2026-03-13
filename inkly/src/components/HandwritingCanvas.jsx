@@ -333,16 +333,21 @@ export default function HandwritingCanvas({ onExport }) {
     const dataUrl = exportCanvas.toDataURL("image/jpeg", 0.95);
     
     try {
-      const { jsPDF } = await import("jspdf");
+      // Safely import jsPDF in Next.js
+      const jsPDFModule = await import("jspdf");
+      const JsPDFClass = jsPDFModule.default ? (jsPDFModule.default.jsPDF || jsPDFModule.default) : jsPDFModule.jsPDF;
       
-      // Use custom page size matching our canvas aspect ratio (800x1600 px)
-      const pdf = new jsPDF({
+      // 1px = 0.75pt (assuming 96 DPI)
+      const pdfWidthPt = originalWidth * 0.75;
+      const pdfHeightPt = originalHeight * 0.75;
+
+      const pdf = new JsPDFClass({
         orientation: "portrait",
-        unit: "pt", // Better for fixed CSS pixels
-        format: [originalWidth, originalHeight]
+        unit: "pt",
+        format: [pdfWidthPt, pdfHeightPt]
       });
       
-      pdf.addImage(dataUrl, "JPEG", 0, 0, originalWidth, originalHeight);
+      pdf.addImage(dataUrl, "JPEG", 0, 0, pdfWidthPt, pdfHeightPt);
       pdf.save(`inkly-handwriting-${Date.now()}.pdf`);
     } catch (err) {
       console.error("Failed to generate PDF:", err);
