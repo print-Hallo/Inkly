@@ -1,5 +1,7 @@
 "use client";
 
+import { useRef } from "react";
+
 /**
  * @purpose: Floating formatting toolbar for the Tiptap editor.
  * @features: Bold, italic, underline, strikethrough, headings (H1-H3),
@@ -9,10 +11,27 @@
  */
 
 export default function Toolbar({ editor }) {
+  const fileInputRef = useRef(null);
+
   if (!editor) return null;
 
   const btnClass = (name, attrs = {}) =>
     `toolbar-btn${editor.isActive(name, attrs) ? " is-active" : ""}`;
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      editor.chain().focus().setImage({ src: reader.result }).run();
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
 
   return (
     <div
@@ -183,6 +202,20 @@ export default function Toolbar({ editor }) {
       <div className="toolbar-divider" />
 
       {/* ─── Image ─── */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageUpload}
+        style={{ display: "none" }}
+      />
+      <button
+        className="toolbar-btn"
+        onClick={() => fileInputRef.current?.click()}
+        title="Upload Image"
+      >
+        📷
+      </button>
       <button
         className="toolbar-btn"
         onClick={() => {
@@ -191,7 +224,7 @@ export default function Toolbar({ editor }) {
             editor.chain().focus().setImage({ src: url }).run();
           }
         }}
-        title="Insert Image"
+        title="Insert Image from URL"
       >
         🖼
       </button>

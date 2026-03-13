@@ -3,13 +3,14 @@
 /**
  * @purpose: Main writing page for Inkly — the core rich text editing experience.
  * @features: Tiptap editor with full typography toolbar, draggable multimedia canvas,
- *            safe HTML preview panel, responsive layout, dark theme.
+ *            safe HTML preview panel, PDF export, inline image insertion, dark theme.
  * @params: None (page component).
  */
 
 import { useState, useCallback } from "react";
 import Editor from "@/components/Editor";
 import DraggableMedia from "@/components/DraggableMedia";
+import ExportPDF from "@/components/ExportPDF";
 
 export default function WritePage() {
   const [htmlOutput, setHtmlOutput] = useState("");
@@ -62,22 +63,25 @@ export default function WritePage() {
             Write beautifully. Format freely.
           </p>
         </div>
-        <button
-          onClick={() => setShowPreview((p) => !p)}
-          style={{
-            padding: "8px 18px",
-            borderRadius: "var(--radius-sm)",
-            background: showPreview ? "var(--accent)" : "var(--surface)",
-            color: showPreview ? "#fff" : "var(--text-secondary)",
-            border: "1px solid var(--border)",
-            cursor: "pointer",
-            fontSize: "0.85rem",
-            fontWeight: 500,
-            transition: "all 0.2s ease",
-          }}
-        >
-          {showPreview ? "✦ Hide Preview" : "✦ Show Preview"}
-        </button>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <ExportPDF htmlContent={htmlOutput} />
+          <button
+            onClick={() => setShowPreview((p) => !p)}
+            style={{
+              padding: "8px 18px",
+              borderRadius: "var(--radius-sm)",
+              background: showPreview ? "var(--accent)" : "var(--surface)",
+              color: showPreview ? "#fff" : "var(--text-secondary)",
+              border: "1px solid var(--border)",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              transition: "all 0.2s ease",
+            }}
+          >
+            {showPreview ? "✦ Hide Preview" : "✦ Show Preview"}
+          </button>
+        </div>
       </header>
 
       {/* ─── Editor ─── */}
