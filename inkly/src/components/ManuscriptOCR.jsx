@@ -31,18 +31,54 @@ export default function ManuscriptOCR() {
     { code: "jpn", label: "Japanese" },
   ];
 
-  const handleImageUpload = useCallback((e) => {
+  const handleFileUpload = useCallback(async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      alert("Please select an image file.");
-      return;
+
+    if (file.type === "application/pdf") {
+      setIsProcessing(true);
+      setProgressLabel("Reading PDF...");
+      try {
+        const pdfjs = await import("pdfjs-dist");
+        pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+        
+        setProgressLabel("Rendering PDF page...");
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 2.0 }); // High scale for better OCR
+        
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        
+        canvas.toBlob((blob) => {
+          const imageFile = new File([blob], "pdf-page.png", { type: "image/png" });
+          setImage(imageFile);
+          setImagePreview(URL.createObjectURL(blob));
+          setExtractedText("");
+          setProgressLabel("");
+          setIsProcessing(false);
+        });
+      } catch (err) {
+        console.error("PDF Parsing failed:", err);
+        alert("Failed to parse PDF document.");
+        setIsProcessing(false);
+        setProgressLabel("");
+      }
+    } else if (file.type.startsWith("image/")) {
+      setImage(file);
+      setExtractedText("");
+      const reader = new FileReader();
+      reader.onload = () => setImagePreview(reader.result);
+      reader.readAsDataURL(file);
+    } else {
+      alert("Please select an image or PDF file.");
     }
-    setImage(file);
-    setExtractedText("");
-    const reader = new FileReader();
-    reader.onload = () => setImagePreview(reader.result);
-    reader.readAsDataURL(file);
   }, []);
 
   const handleRecognize = useCallback(async () => {
@@ -73,6 +109,8 @@ export default function ManuscriptOCR() {
       setProgressLabel("Loading OCR engine...");
       const Tesseract = await import("tesseract.js");
       const { data } = await Tesseract.recognize(ocrSource, language, {
+        // PSM 4: Assume a single column of text of variable sizes (better for cursive/handwriting)
+        tessedit_pageseg_mode: 4,
         logger: (m) => {
           if (m.status) {
             setProgressLabel(m.status);
@@ -140,7 +178,7 @@ export default function ManuscriptOCR() {
           📝 Manuscript → Text
         </h2>
         <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "4px 0 0" }}>
-          Upload a handwritten manuscript or note — AI will extract the text for you
+          Upload a handwritten note or PDF — AI will extract the text for you
         </p>
       </div>
 
@@ -158,8 +196,8 @@ export default function ManuscriptOCR() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
-          onChange={handleImageUpload}
+          accept="image/*,application/pdf"
+          onChange={handleFileUpload}
           style={{ display: "none" }}
         />
         <button
@@ -172,7 +210,7 @@ export default function ManuscriptOCR() {
             boxShadow: "0 2px 10px rgba(108, 92, 231, 0.3)",
           }}
         >
-          📤 Upload Image
+          📤 Upload Image or PDF
         </button>
 
         <select
@@ -376,7 +414,7 @@ export default function ManuscriptOCR() {
           >
             <span style={{ fontSize: "2.5rem" }}>📄</span>
             <span style={{ fontSize: "0.9rem" }}>
-              Upload a manuscript image to extract text
+              Upload an image or PDF to extract text
             </span>
           </div>
         )}

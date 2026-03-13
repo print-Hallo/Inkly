@@ -14,26 +14,62 @@ export default function HandwritingCanvas({ onExport }) {
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [tool, setTool] = useState("pen"); // "pen" | "eraser"
-  const [strokeColor, setStrokeColor] = useState("#f0f0f5");
+  const [tool, setTool] = useState("pen"); // "pen" | "eraser" | "pan"
+  const [strokeColor, setStrokeColor] = useState("#1a1a2e"); // Dark ink default
   const [strokeWidth, setStrokeWidth] = useState(3);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+
+  // Panning State
+  const containerRef = useRef(null);
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+
+  // Theme & Language State
+  const [theme, setTheme] = useState("light-ruled");
+  const [ocrLanguage, setOcrLanguage] = useState("fra"); // Default to French for cursive
 
   // Live OCR State
   const [liveText, setLiveText] = useState("");
   const [isRecognizing, setIsRecognizing] = useState(false);
   const ocrTimeoutRef = useRef(null);
 
+  const languages = [
+    { code: "eng", label: "English" },
+    { code: "fra", label: "French" },
+    { code: "spa", label: "Spanish" },
+    { code: "deu", label: "German" },
+    { code: "ara", label: "Arabic" },
+    { code: "chi_sim", label: "Chinese (Simplified)" },
+    { code: "jpn", label: "Japanese" },
+  ];
+
+  const themesData = {
+    "light-ruled": { bg: "#fdfdfc", lines: "repeating-linear-gradient(transparent, transparent 31px, #e5e5f0 31px, #e5e5f0 32px)", dropShadow: true },
+    "light-blank": { bg: "#fdfdfc", lines: "none", dropShadow: true },
+    "dark-ruled": { bg: "#1e1e2a", lines: "repeating-linear-gradient(transparent, transparent 31px, #2a2a3e 31px, #2a2a3e 32px)", dropShadow: false },
+    "dark-blank": { bg: "#1e1e2a", lines: "none", dropShadow: false },
+  };
+
+  useEffect(() => {
+    if (theme.startsWith("dark") && strokeColor === "#1a1a2e") setStrokeColor("#f0f0f5");
+    if (theme.startsWith("light") && strokeColor === "#f0f0f5") setStrokeColor("#1a1a2e");
+  }, [theme, strokeColor]);
+
   /* ─── Initialize Canvas ─── */
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Simulate an A4-ish page or a long continuous roll
+    const canvasWidth = 800;
+    const canvasHeight = 1600;
+
     const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    canvas.style.width = `${canvasWidth}px`;
+    canvas.style.height = `${canvasHeight}px`;
+    canvas.width = canvasWidth * dpr;
+    canvas.height = canvasHeight * dpr;
 
     const ctx = canvas.getContext("2d");
     ctx.scale(dpr, dpr);
@@ -85,15 +121,16 @@ export default function HandwritingCanvas({ onExport }) {
       offCanvas.height = img.height;
       const offCtx = offCanvas.getContext("2d");
 
-      // Fill with black background
-      offCtx.fillStyle = "#000000";
-      offCtx.fillRect(0, 0, offCanvas.width, offCanvas.height);
-      
-      // Draw the transparent strokes on top
+      // Draw the transparent strokes
       offCtx.drawImage(img, 0, 0);
 
-      // Invert the whole canvas so we get black strokes on white background (perfect for OCR)
-      offCtx.globalCompositeOperation = "difference";
+      // Force all strokes to be black (to handle white ink from dark mode perfectly)
+      offCtx.globalCompositeOperation = "source-in";
+      offCtx.fillStyle = "#000000";
+      offCtx.fillRect(0, 0, offCanvas.width, offCanvas.height);
+
+      // Add a white background behind the black strokes
+      offCtx.globalCompositeOperation = "destination-over";
       offCtx.fillStyle = "#ffffff";
       offCtx.fillRect(0, 0, offCanvas.width, offCanvas.height);
 
@@ -102,9 +139,9 @@ export default function HandwritingCanvas({ onExport }) {
       setIsRecognizing(true);
       try {
         const Tesseract = await import("tesseract.js");
-        const { data } = await Tesseract.recognize(processedDataUrl, "eng", {
-          // psm 6 = Assume a single uniform block of text
-          tessedit_pageseg_mode: 6,
+        const { data } = await Tesseract.recognize(processedDataUrl, ocrLanguage, {
+          // psm 4 = Assume a single column of text of variable sizes (better for cursive lines)
+          tessedit_pageseg_mode: 4,
         });
         setLiveText(data.text.trim());
       } catch (err) {
@@ -114,7 +151,7 @@ export default function HandwritingCanvas({ onExport }) {
       }
     };
     img.src = dataUrl;
-  }, []);
+  }, [ocrLanguage]);
 
   // Trigger OCR 1.5s after the user stops drawing
   useEffect(() => {
@@ -126,7 +163,7 @@ export default function HandwritingCanvas({ onExport }) {
     }
   }, [historyIndex, history, runLiveOCR]);
 
-  /* ─── Drawing ─── */
+  /* ─── Drawing & Panning ─── */
   const getPosition = useCallback((e) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -144,9 +181,21 @@ export default function HandwritingCanvas({ onExport }) {
     };
   }, []);
 
-  const startDrawing = useCallback(
+  const handlePointerDown = useCallback(
     (e) => {
       e.preventDefault();
+      if (tool === "pan") {
+        setIsPanning(true);
+        const touch = e.touches ? e.touches[0] : e;
+        panStartRef.current = {
+          x: touch.clientX,
+          y: touch.clientY,
+          scrollLeft: containerRef.current?.scrollLeft || 0,
+          scrollTop: containerRef.current?.scrollTop || 0,
+        };
+        return;
+      }
+
       const ctx = contextRef.current;
       if (!ctx) return;
 
@@ -157,7 +206,7 @@ export default function HandwritingCanvas({ onExport }) {
 
       if (tool === "eraser") {
         ctx.globalCompositeOperation = "destination-out";
-        ctx.lineWidth = strokeWidth * 4;
+        ctx.lineWidth = strokeWidth * 6; // Thicker eraser
       } else {
         ctx.globalCompositeOperation = "source-over";
         ctx.strokeStyle = strokeColor;
@@ -169,8 +218,18 @@ export default function HandwritingCanvas({ onExport }) {
     [tool, strokeColor, strokeWidth, getPosition]
   );
 
-  const draw = useCallback(
+  const handlePointerMove = useCallback(
     (e) => {
+      if (isPanning && containerRef.current) {
+        e.preventDefault();
+        const touch = e.touches ? e.touches[0] : e;
+        const dx = touch.clientX - panStartRef.current.x;
+        const dy = touch.clientY - panStartRef.current.y;
+        containerRef.current.scrollLeft = panStartRef.current.scrollLeft - dx;
+        containerRef.current.scrollTop = panStartRef.current.scrollTop - dy;
+        return;
+      }
+
       if (!isDrawing) return;
       e.preventDefault();
       const ctx = contextRef.current;
@@ -180,11 +239,16 @@ export default function HandwritingCanvas({ onExport }) {
       ctx.lineTo(x, y);
       ctx.stroke();
     },
-    [isDrawing, getPosition]
+    [isDrawing, isPanning, getPosition]
   );
 
-  const stopDrawing = useCallback(
+  const handlePointerUp = useCallback(
     (e) => {
+      if (isPanning) {
+        setIsPanning(false);
+        return;
+      }
+
       if (!isDrawing) return;
       e?.preventDefault();
       const ctx = contextRef.current;
@@ -194,7 +258,7 @@ export default function HandwritingCanvas({ onExport }) {
       setIsDrawing(false);
       saveState();
     },
-    [isDrawing, saveState]
+    [isDrawing, isPanning, saveState]
   );
 
   /* ─── Actions ─── */
@@ -221,18 +285,70 @@ export default function HandwritingCanvas({ onExport }) {
     saveState();
   }, [saveState]);
 
-  const handleExport = useCallback(() => {
+  const handleExportPDF = useCallback(async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dataUrl = canvas.toDataURL("image/png");
-    onExport?.(dataUrl);
 
-    // Also trigger download
-    const link = document.createElement("a");
-    link.download = `inkly-handwriting-${Date.now()}.png`;
-    link.href = dataUrl;
-    link.click();
-  }, [onExport]);
+    const originalWidth = 800;
+    const originalHeight = 1600;
+    const dpr = window.devicePixelRatio || 1;
+
+    // 1. Create an offscreen canvas to composite the background and strokes
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = canvas.width;
+    exportCanvas.height = canvas.height;
+    const ctx = exportCanvas.getContext("2d");
+
+    // 2. Draw Theme Background Color
+    ctx.fillStyle = themesData[theme].bg;
+    ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+    // 3. Draw Ruled Lines
+    if (theme.includes("ruled")) {
+      const lineSpacing = 32 * dpr;
+      
+      ctx.lineWidth = 1 * dpr;
+      ctx.strokeStyle = theme.startsWith("dark") ? "#2a2a3e" : "#e5e5f0";
+      
+      for (let y = 40 * dpr; y < exportCanvas.height; y += lineSpacing) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(exportCanvas.width, y);
+        ctx.stroke();
+      }
+
+      // Draw Red Margin
+      ctx.lineWidth = 2 * dpr;
+      ctx.strokeStyle = "rgba(255, 118, 117, 0.5)"; // #ff7675 with opacity
+      ctx.beginPath();
+      ctx.moveTo(60 * dpr, 0);
+      ctx.lineTo(60 * dpr, exportCanvas.height);
+      ctx.stroke();
+    }
+
+    // 4. Draw User Strokes
+    ctx.drawImage(canvas, 0, 0);
+
+    // 5. Convert to Image and add to jsPDF
+    const dataUrl = exportCanvas.toDataURL("image/jpeg", 0.95);
+    
+    try {
+      const { jsPDF } = await import("jspdf");
+      
+      // Use custom page size matching our canvas aspect ratio (800x1600 px)
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "pt", // Better for fixed CSS pixels
+        format: [originalWidth, originalHeight]
+      });
+      
+      pdf.addImage(dataUrl, "JPEG", 0, 0, originalWidth, originalHeight);
+      pdf.save(`inkly-handwriting-${Date.now()}.pdf`);
+    } catch (err) {
+      console.error("Failed to generate PDF:", err);
+      alert("Error generating PDF. Please try again.");
+    }
+  }, [theme, themesData]);
 
   const widths = [1, 2, 3, 5, 8];
 
@@ -271,6 +387,9 @@ export default function HandwritingCanvas({ onExport }) {
         }}
       >
         {/* Tools */}
+        <button style={toolBtnStyle(tool === "pan")} onClick={() => setTool("pan")}>
+          🖐️ Pan
+        </button>
         <button style={toolBtnStyle(tool === "pen")} onClick={() => setTool("pen")}>
           ✏️ Pen
         </button>
@@ -341,9 +460,30 @@ export default function HandwritingCanvas({ onExport }) {
           🗑️
         </button>
 
+        <div className="toolbar-divider" />
+
+        {/* Theme Selector */}
+        <select
+          value={theme}
+          onChange={(e) => setTheme(e.target.value)}
+          style={{
+            ...toolBtnStyle(false),
+            appearance: "none",
+            paddingRight: "24px",
+            backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239090a8' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")",
+            backgroundRepeat: "no-repeat",
+            backgroundPosition: "right 8px center",
+          }}
+        >
+          <option value="light-ruled">Light (Ruled)</option>
+          <option value="light-blank">Light (Blank)</option>
+          <option value="dark-ruled">Dark (Ruled)</option>
+          <option value="dark-blank">Dark (Blank)</option>
+        </select>
+
         <div style={{ marginLeft: "auto" }}>
           <button
-            onClick={handleExport}
+            onClick={handleExportPDF}
             style={{
               padding: "6px 16px",
               borderRadius: "var(--radius-sm)",
@@ -357,37 +497,73 @@ export default function HandwritingCanvas({ onExport }) {
               transition: "all 0.15s ease",
             }}
           >
-            💾 Save as PNG
+            📄 Save as PDF
           </button>
         </div>
       </div>
 
-      {/* ─── Canvas ─── */}
+      {/* ─── Canvas Viewport (Scrollable Book Page) ─── */}
       <div
+        ref={containerRef}
         style={{
           position: "relative",
           width: "100%",
-          height: "500px",
-          cursor: tool === "eraser" ? "cell" : "crosshair",
-          background: "#1e1e2a",
-          touchAction: "none",
+          height: "600px",
+          overflow: "auto",
+          background: "var(--bg-primary)", // Darker desk background behind the page
+          padding: "40px",
         }}
       >
-        <canvas
-          ref={canvasRef}
+        <div
           style={{
-            width: "100%",
-            height: "100%",
-            display: "block",
+            position: "relative",
+            margin: "0 auto",
+            width: "800px",
+            height: "1600px",
+            background: themesData[theme].bg,
+            backgroundImage: themesData[theme].lines,
+            backgroundPosition: "0 40px",
+            boxShadow: themesData[theme].dropShadow ? "0 8px 30px rgba(0, 0, 0, 0.2), 0 0 1px rgba(0, 0, 0, 0.4)" : "none",
+            borderRadius: "4px",
+            cursor: tool === "pan" ? (isPanning ? "grabbing" : "grab") : tool === "eraser" ? "cell" : "crosshair",
+            touchAction: tool === "pan" ? "auto" : "none",
+            transition: "background 0.3s ease",
           }}
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-          onTouchStart={startDrawing}
-          onTouchMove={draw}
-          onTouchEnd={stopDrawing}
-        />
+        >
+          {/* Edge binding simulation (left margin line) */}
+          {theme.includes("ruled") && (
+            <div
+              style={{
+                position: "absolute",
+                left: "60px",
+                top: 0,
+                bottom: 0,
+                width: "2px",
+                background: "#ff7675", // Red margin line
+                opacity: 0.5,
+                pointerEvents: "none",
+              }}
+            />
+          )}
+
+          <canvas
+            ref={canvasRef}
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "block",
+              position: "relative",
+              zIndex: 10,
+            }}
+            onMouseDown={handlePointerDown}
+            onMouseMove={handlePointerMove}
+            onMouseUp={handlePointerUp}
+            onMouseLeave={handlePointerUp}
+            onTouchStart={handlePointerDown}
+            onTouchMove={handlePointerMove}
+            onTouchEnd={handlePointerUp}
+          />
+        </div>
       </div>
 
       {/* ─── Live Text Recognition Area ─── */}
@@ -402,9 +578,30 @@ export default function HandwritingCanvas({ onExport }) {
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3 style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
-            ✨ Live Text Recognition
-          </h3>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <h3 style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
+              ✨ Live Text Recognition
+            </h3>
+            <select
+              value={ocrLanguage}
+              onChange={(e) => setOcrLanguage(e.target.value)}
+              style={{
+                ...toolBtnStyle(false),
+                padding: "2px 24px 2px 8px",
+                fontSize: "0.75rem",
+                appearance: "none",
+                backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%239090a8' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")",
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 6px center",
+              }}
+            >
+              {languages.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
             {isRecognizing ? "⏳ Analyzing strokes..." : "Auto-updates when you stop drawing"}
           </span>
