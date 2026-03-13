@@ -42,25 +42,43 @@ export default function Home() {
           margin: "0 0 2rem",
         }}
       >
-        An AI-powered notes app with rich typography, draggable media, and a
-        beautiful writing experience.
+        An AI-powered notes app with rich typography, draggable media,
+        handwriting recognition, and a beautiful writing experience.
       </p>
-      <Link
-        href="/write"
-        style={{
-          padding: "14px 36px",
-          borderRadius: "var(--radius-md)",
-          background: "linear-gradient(135deg, #6c5ce7, #7c6ef7)",
-          color: "#fff",
-          textDecoration: "none",
-          fontSize: "1rem",
-          fontWeight: 600,
-          boxShadow: "0 4px 24px rgba(108, 92, 231, 0.35)",
-          transition: "all 0.2s ease",
-        }}
-      >
-        Start Writing →
-      </Link>
+      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
+        <Link
+          href="/write"
+          style={{
+            padding: "14px 36px",
+            borderRadius: "var(--radius-md)",
+            background: "linear-gradient(135deg, #6c5ce7, #7c6ef7)",
+            color: "#fff",
+            textDecoration: "none",
+            fontSize: "1rem",
+            fontWeight: 600,
+            boxShadow: "0 4px 24px rgba(108, 92, 231, 0.35)",
+            transition: "all 0.2s ease",
+          }}
+        >
+          Start Writing →
+        </Link>
+        <Link
+          href="/handwrite"
+          style={{
+            padding: "14px 36px",
+            borderRadius: "var(--radius-md)",
+            background: "var(--surface)",
+            color: "var(--text-primary)",
+            textDecoration: "none",
+            fontSize: "1rem",
+            fontWeight: 600,
+            border: "1px solid var(--border)",
+            transition: "all 0.2s ease",
+          }}
+        >
+          ✏️ Handwrite
+        </Link>
+      </div>
     </main>
   );
 }
