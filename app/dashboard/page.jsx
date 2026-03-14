@@ -58,9 +58,9 @@ export default function Dashboard() {
         onNoteSelect={handleNoteSelect}
       />
 
-      {/* Main area */}
+      {/* main area */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
-        {/* Top bar */}
+        {/* top bar */}
         <div className="flex items-center justify-between px-8 py-5 shrink-0">
           <div>
             <h1 className="text-xl font-medium text-neutral-900 dark:text-white tracking-tight">
@@ -70,7 +70,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Notes grid */}
+        {/* notes grid */}
         <div className="flex-1 overflow-y-auto px-8 pb-32">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {NOTES.map((note) => (
@@ -101,7 +101,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* New note — bottom center */}
+        {/* new note button */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
           <button
             onClick={() => router.push("/dashboard/note/new")}

@@ -88,7 +88,7 @@ export default function Sidebar({ notes = [], activeNoteId, onNoteSelect }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Icon rail */}
+      {/* icon rail */}
       <div className="w-[52px] bg-neutral-950 flex flex-col items-center py-3.5 gap-1 border-r border-white/5 z-30 relative">
         {NAV.map((item) => (
           <button
@@ -124,7 +124,7 @@ export default function Sidebar({ notes = [], activeNoteId, onNoteSelect }) {
         </button>
       </div>
 
-      {/* Slide-out notes panel */}
+      {/* slideout notes panel */}
       <div
         className={`absolute left-[52px] top-0 h-full w-[220px] bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 flex flex-col transition-all duration-200 ease-in-out z-20
           ${hovered
