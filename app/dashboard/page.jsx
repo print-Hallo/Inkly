@@ -26,7 +26,7 @@ const TAG_COLORS = {
   health:   "bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300",
 };
 
-// Replace with real DB fetch later
+// to be replaced with real DB fetch later on
 const NOTES = [
   { id: 1, title: "Product roadmap Q2", preview: "Outlining key milestones for the next quarter. Focus on shipping the editor, onboarding flow, and AI features...", date: "Today", readTime: "3 min", pinned: true, tag: "work" },
   { id: 2, title: "Interview prep notes", preview: "System design: scalability, load balancing, caching. Behavioral: STAR method. Practice leetcode mediums daily...", date: "Yesterday", readTime: "8 min", pinned: true, tag: "career" },
